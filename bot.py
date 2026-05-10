@@ -4,7 +4,6 @@ import os
 import nest_asyncio
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
-from aiogram.utils.keyboard import ReplyKeyboardBuilder
 from llama_cpp import Llama
 
 nest_asyncio.apply()
@@ -45,7 +44,10 @@ def load_memory():
 
 # 4. Load Characters (Dynamic Loader)
 def load_characters():
+    global characters
+    characters.clear() # Clear it to prevent duplicates if reloaded
     base_path = os.path.join(os.getcwd(), "characters")
+    
     if not os.path.exists(base_path):
         print("⚠️ Characters folder not found!")
         return
@@ -71,22 +73,23 @@ async def start_cmd(msg: types.Message):
 
 @dp.message(Command("change"))
 async def change_cmd(msg: types.Message):
-    # Safety check: if no characters loaded, tell the user
+    # FORCE RELOAD: If the dictionary is empty, try loading it again right now
     if not characters:
-        await msg.answer("⚠️ No characters found! Make sure your JSON files are inside the 'characters' folder.")
+        load_characters()
+        
+    # SAFETY CHECK: If it's STILL empty, tell the user exactly why
+    if not characters:
+        await msg.answer("⚠️ I couldn't find any JSON files inside your 'characters' folder on GitHub!")
         return
 
-    # NEW: Using the proper Aiogram 3 Keyboard Builder
-    builder = ReplyKeyboardBuilder()
+    # THE FIX: Using the classic, fail-proof list-of-lists keyboard (1 button per row)
+    kb = []
     for c in characters.keys():
-        builder.button(text=f"Switch to {c.capitalize()}")
-    
-    # This automatically organizes the buttons into 2 columns so it looks clean on mobile
-    builder.adjust(2) 
-    
-    await msg.answer("Select your character:", reply_markup=builder.as_markup(resize_keyboard=True, one_time_keyboard=True))
+        kb.append([types.KeyboardButton(text=f"Switch to {c.capitalize()}")])
+        
+    keyboard = types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True, one_time_keyboard=True)
+    await msg.answer("Who do you want to talk to?", reply_markup=keyboard)
 
-# NEW: Using Aiogram 3's Magic Filter (F.text) for better stability
 @dp.message(F.text.startswith("Switch to "))
 async def process_change(msg: types.Message):
     user_id = str(msg.from_user.id)
