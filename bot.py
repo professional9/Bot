@@ -4,6 +4,7 @@ import os
 import nest_asyncio
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from llama_cpp import Llama
 
 nest_asyncio.apply()
@@ -42,10 +43,10 @@ def load_memory():
         except Exception as e:
             print(f"Error loading memory: {e}")
 
-# 4. Load Characters (Dynamic Loader)
+# 4. Load Characters
 def load_characters():
     global characters
-    characters.clear() # Clear it to prevent duplicates if reloaded
+    characters.clear()
     base_path = os.path.join(os.getcwd(), "characters")
     
     if not os.path.exists(base_path):
@@ -71,35 +72,37 @@ async def start_cmd(msg: types.Message):
     current = active_character.get(user_id, "becky").capitalize()
     await msg.answer(f"Online! Chatting with: {current}\nUse /change to swap characters.")
 
+# --- THE NEW INLINE MENU ---
 @dp.message(Command("change"))
 async def change_cmd(msg: types.Message):
-    # FORCE RELOAD: If the dictionary is empty, try loading it again right now
     if not characters:
         load_characters()
-        
-    # SAFETY CHECK: If it's STILL empty, tell the user exactly why
     if not characters:
-        await msg.answer("⚠️ I couldn't find any JSON files inside your 'characters' folder on GitHub!")
+        await msg.answer("⚠️ I couldn't find any JSON files inside your 'characters' folder!")
         return
 
-    # THE FIX: Using the classic, fail-proof list-of-lists keyboard (1 button per row)
-    kb = []
+    # Create INLINE buttons (attached directly to the message)
+    buttons = []
     for c in characters.keys():
-        kb.append([types.KeyboardButton(text=f"Switch to {c.capitalize()}")])
+        buttons.append([InlineKeyboardButton(text=c.capitalize(), callback_data=f"switch_{c}")])
         
-    keyboard = types.ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True, one_time_keyboard=True)
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
     await msg.answer("Who do you want to talk to?", reply_markup=keyboard)
 
-@dp.message(F.text.startswith("Switch to "))
-async def process_change(msg: types.Message):
-    user_id = str(msg.from_user.id)
-    new_char = msg.text.replace("Switch to ", "").lower()
+# Handles the inline button taps
+@dp.callback_query(F.data.startswith("switch_"))
+async def process_change(callback: types.CallbackQuery):
+    user_id = str(callback.from_user.id)
+    new_char = callback.data.replace("switch_", "")
     
     if new_char in characters:
         active_character[user_id] = new_char
-        await msg.answer(f"Switched to {new_char.capitalize()}! 💋", reply_markup=types.ReplyKeyboardRemove())
+        # Changes the menu message to a confirmation
+        await callback.message.edit_text(f"Switched to {new_char.capitalize()}! 💋")
     else:
-        await msg.answer("Character not found. Please try /change again.")
+        await callback.message.answer("Character not found.")
+    
+    await callback.answer() # Tell Telegram the button was pressed successfully
 
 @dp.message(Command("wipe"))
 async def wipe_cmd(msg: types.Message):
