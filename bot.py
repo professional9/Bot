@@ -53,19 +53,23 @@ def load_characters():
     base_path = os.path.join(os.getcwd(), "characters")
     
     if not os.path.exists(base_path):
-        print("⚠️ characters folder not found!")
+        print("⚠️ 'characters' folder not found! Create it and put JSON files.")
         return
         
+    loaded = []
     for filename in os.listdir(base_path):
         if filename.endswith(".json"):
             try:
-                with open(os.path.join(base_path, filename), "r", encoding="utf-8") as f:
+                filepath = os.path.join(base_path, filename)
+                with open(filepath, "r", encoding="utf-8") as f:
                     data = json.load(f)
                     char_id = data["name"].lower().strip()
                     characters[char_id] = data
+                    loaded.append(char_id)
             except Exception as e:
-                print(f"Error loading {filename}: {e}")
-    print(f"Loaded: {list(characters.keys())}")
+                print(f"❌ Error loading {filename}: {e}")
+    
+    print(f"✅ Successfully loaded {len(loaded)} characters: {loaded}")
 
 # ===================== COMMANDS =====================
 @dp.message(Command("start"))
