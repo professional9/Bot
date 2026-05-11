@@ -1,6 +1,7 @@
 import asyncio
 import json
 import os
+import re
 import nest_asyncio
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import Command
@@ -168,8 +169,14 @@ BEHAVIOR:
     anchor = "*smirks* "
     full_prompt += f"<|start_header_id|>assistant<|end_header_id|>\n\n{anchor}"
     
-    output = llm(full_prompt, max_tokens=450, stop=["<|eot_id|>"], echo=False, temperature=0.9)
-    reply = anchor + output['choices'][0]['text']
+    # Increased tokens to 1024 for DeepSeek's thinking process
+    output = llm(full_prompt, max_tokens=1024, stop=["<|eot_id|>"], echo=False, temperature=0.9)
+    raw_text = output['choices'][0]['text']
+    
+    # Cleans out the <think> blocks
+    clean_text = re.sub(r'<think>.*?</think>\n*', '', raw_text, flags=re.DOTALL).strip()
+    
+    reply = anchor + clean_text
     
     history.append({'role': 'assistant', 'content': reply})
     save_memory()
